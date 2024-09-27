@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 from xgboost import XGBClassifier, XGBRegressor
-from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold, StratifiedShuffleSplit
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 from sklearn.metrics import accuracy_score, mean_squared_error
 import plotly.express as px
 import matplotlib.pyplot as plt
@@ -42,19 +42,16 @@ def train_injury_risk_model(df):
     X = df[['age', 'games', 'injury_record']]  # 입력 데이터
     y = (df['injury_record'] > 3).astype(int)  # 부상 확률 높음 (1), 낮음 (0)으로 변환
 
-    # 각 클래스에 충분한 데이터가 있는지 확인
-    if len(np.unique(y)) < 2:
-        st.write("부상 기록에 따른 클래스가 불균형합니다. 데이터가 충분하지 않습니다.")
+    # 데이터 크기 확인 및 최소 데이터 수 확인
+    if len(np.unique(y)) < 2 or len(y) < 3:
+        st.write("데이터가 너무 적거나 클래스가 불균형하여 학습이 불가능합니다.")
         return None, None, None, None
 
-    # StratifiedShuffleSplit을 사용하여 클래스 비율을 유지하면서 train/test 데이터 분할
-    stratified_split = StratifiedShuffleSplit(n_splits=1, test_size=min(0.2, len(X) / 2), random_state=42)
+    # 기본 train_test_split 사용
     try:
-        for train_index, test_index in stratified_split.split(X, y):
-            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-            y_train, y_test = y[train_index], y[test_index]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     except ValueError as e:
-        st.write("데이터 분할에 실패했습니다. 데이터가 충분하지 않거나 클래스가 불균형합니다.")
+        st.write(f"데이터 분할에 실패했습니다: {e}")
         return None, None, None, None
 
     # 데이터 크기에 맞게 n_splits 조정
@@ -108,14 +105,16 @@ def train_market_value_model(df):
     X = df[['age', 'games', 'injury_record']]  # 입력 데이터
     y = df['market_value']  # 목표 데이터
 
-    # StratifiedShuffleSplit 사용 및 클래스 불균형 확인
-    stratified_split = StratifiedShuffleSplit(n_splits=1, test_size=min(0.2, len(X) / 2), random_state=42)
+    # 데이터 크기 확인 및 최소 데이터 수 확인
+    if len(X) < 3:
+        st.write("데이터가 너무 적어서 학습이 불가능합니다.")
+        return None, None, None, None
+
+    # 기본 train_test_split 사용
     try:
-        for train_index, test_index in stratified_split.split(X, y):
-            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-            y_train, y_test = y[train_index], y[test_index]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     except ValueError as e:
-        st.write("데이터 분할에 실패했습니다. 데이터가 충분하지 않거나 클래스가 불균형합니다.")
+        st.write(f"데이터 분할에 실패했습니다: {e}")
         return None, None, None, None
 
     # 데이터 크기에 맞게 n_splits 조정
