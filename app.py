@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 from xgboost import XGBClassifier, XGBRegressor
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 from sklearn.metrics import accuracy_score, mean_squared_error
 import plotly.express as px
 import matplotlib.pyplot as plt
@@ -43,7 +43,7 @@ def train_injury_risk_model(df):
     y = (df['injury_record'] > 3).astype(int)  # 부상 확률 높음 (1), 낮음 (0)으로 변환
 
     # 데이터 분할
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
     # 데이터 크기에 맞게 n_splits 조정
     n_samples = len(X_train)
@@ -67,7 +67,10 @@ def train_injury_risk_model(df):
             'max_depth': [3, 5, 7]
         }
 
-        gb_grid = GridSearchCV(GradientBoostingClassifier(random_state=42), gb_param_grid, cv=n_splits, scoring='accuracy')
+        # StratifiedKFold 사용
+        stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+        gb_grid = GridSearchCV(GradientBoostingClassifier(random_state=42), gb_param_grid, cv=stratified_kfold, scoring='accuracy')
         gb_grid.fit(X_train, y_train)
 
         # 하이퍼파라미터 그리드 설정 (XGBoost)
@@ -79,7 +82,7 @@ def train_injury_risk_model(df):
         }
 
         xgb_grid = GridSearchCV(XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss'), 
-                                xgb_param_grid, cv=n_splits, scoring='accuracy')
+                                xgb_param_grid, cv=stratified_kfold, scoring='accuracy')
         xgb_grid.fit(X_train, y_train)
 
         gb_score = gb_grid.best_score_
@@ -96,7 +99,7 @@ def train_market_value_model(df):
     
     # 데이터 분할
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
+
     # 데이터 크기에 맞게 n_splits 조정
     n_samples = len(X_train)
     n_splits = min(5, n_samples)  # 샘플 수가 5보다 적으면 n_splits 값을 줄임
@@ -225,4 +228,3 @@ if st.button("선수 검색"):
             visualize_player_stats(player)
     else:
         st.write("조건에 맞는 선수가 없습니다.")
-
