@@ -41,41 +41,51 @@ df = fetch_player_data()
 def train_injury_risk_model(df):
     X = df[['age', 'games', 'injury_record']]  # 입력 데이터
     y = (df['injury_record'] > 3).astype(int)  # 부상 확률 높음 (1), 낮음 (0)으로 변환
-    
+
     # 데이터 분할
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # 하이퍼파라미터 그리드 설정 (Gradient Boosting)
-    gb_param_grid = {
-        'n_estimators': [50, 100, 150],
-        'learning_rate': [0.01, 0.1, 0.2],
-        'max_depth': [3, 5, 7]
-    }
-    
-    gb_grid = GridSearchCV(GradientBoostingClassifier(random_state=42), gb_param_grid, cv=5, scoring='accuracy')
-    gb_grid.fit(X_train, y_train)
-    
-    # 하이퍼파라미터 그리드 설정 (XGBoost)
-    xgb_param_grid = {
-        'n_estimators': [50, 100, 150],
-        'learning_rate': [0.01, 0.1, 0.2],
-        'max_depth': [3, 5, 7],
-        'gamma': [0, 0.1, 0.3]
-    }
-    
-    xgb_grid = GridSearchCV(XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss'), 
-                            xgb_param_grid, cv=5, scoring='accuracy')
-    xgb_grid.fit(X_train, y_train)
-    
-    # 최적의 파라미터 출력
-    st.write(f"Gradient Boosting 최적의 파라미터: {gb_grid.best_params_}")
-    st.write(f"XGBoost 최적의 파라미터: {xgb_grid.best_params_}")
-    
-    # 교차 검증 및 모델 성능 평가
-    gb_score = gb_grid.best_score_
-    xgb_score = xgb_grid.best_score_
 
-    return gb_grid.best_estimator_, xgb_grid.best_estimator_, gb_score, xgb_score
+    # 데이터 크기에 맞게 n_splits 조정
+    n_samples = len(X_train)
+    n_splits = min(5, n_samples)  # 샘플 수가 5보다 적으면 n_splits 값을 줄임
+
+    if n_splits < 2:
+        st.write("샘플 수가 너무 적어 교차 검증을 사용할 수 없습니다. 기본 학습만 진행합니다.")
+        gb_model = GradientBoostingClassifier(random_state=42)
+        gb_model.fit(X_train, y_train)
+
+        xgb_model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
+        xgb_model.fit(X_train, y_train)
+
+        return gb_model, xgb_model, None, None  # 교차 검증 점수 없음
+
+    else:
+        # 하이퍼파라미터 그리드 설정 (Gradient Boosting)
+        gb_param_grid = {
+            'n_estimators': [50, 100, 150],
+            'learning_rate': [0.01, 0.1, 0.2],
+            'max_depth': [3, 5, 7]
+        }
+
+        gb_grid = GridSearchCV(GradientBoostingClassifier(random_state=42), gb_param_grid, cv=n_splits, scoring='accuracy')
+        gb_grid.fit(X_train, y_train)
+
+        # 하이퍼파라미터 그리드 설정 (XGBoost)
+        xgb_param_grid = {
+            'n_estimators': [50, 100, 150],
+            'learning_rate': [0.01, 0.1, 0.2],
+            'max_depth': [3, 5, 7],
+            'gamma': [0, 0.1, 0.3]
+        }
+
+        xgb_grid = GridSearchCV(XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss'), 
+                                xgb_param_grid, cv=n_splits, scoring='accuracy')
+        xgb_grid.fit(X_train, y_train)
+
+        gb_score = gb_grid.best_score_
+        xgb_score = xgb_grid.best_score_
+
+        return gb_grid.best_estimator_, xgb_grid.best_estimator_, gb_score, xgb_score
 
 gb_injury_model, xgb_injury_model, gb_injury_score, xgb_injury_score = train_injury_risk_model(df)
 
@@ -87,36 +97,46 @@ def train_market_value_model(df):
     # 데이터 분할
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # 하이퍼파라미터 그리드 설정 (Gradient Boosting)
-    gb_param_grid = {
-        'n_estimators': [50, 100, 150],
-        'learning_rate': [0.01, 0.1, 0.2],
-        'max_depth': [3, 5, 7]
-    }
-    
-    gb_grid = GridSearchCV(GradientBoostingRegressor(random_state=42), gb_param_grid, cv=5, scoring='neg_mean_squared_error')
-    gb_grid.fit(X_train, y_train)
-    
-    # 하이퍼파라미터 그리드 설정 (XGBoost)
-    xgb_param_grid = {
-        'n_estimators': [50, 100, 150],
-        'learning_rate': [0.01, 0.1, 0.2],
-        'max_depth': [3, 5, 7],
-        'gamma': [0, 0.1, 0.3]
-    }
-    
-    xgb_grid = GridSearchCV(XGBRegressor(random_state=42), xgb_param_grid, cv=5, scoring='neg_mean_squared_error')
-    xgb_grid.fit(X_train, y_train)
-    
-    # 최적의 파라미터 출력
-    st.write(f"Gradient Boosting 최적의 파라미터: {gb_grid.best_params_}")
-    st.write(f"XGBoost 최적의 파라미터: {xgb_grid.best_params_}")
-    
-    # 교차 검증 및 모델 성능 평가
-    gb_mse = gb_grid.best_score_
-    xgb_mse = xgb_grid.best_score_
+    # 데이터 크기에 맞게 n_splits 조정
+    n_samples = len(X_train)
+    n_splits = min(5, n_samples)  # 샘플 수가 5보다 적으면 n_splits 값을 줄임
 
-    return gb_grid.best_estimator_, xgb_grid.best_estimator_, gb_mse, xgb_mse
+    if n_splits < 2:
+        st.write("샘플 수가 너무 적어 교차 검증을 사용할 수 없습니다. 기본 학습만 진행합니다.")
+        gb_model = GradientBoostingRegressor(random_state=42)
+        gb_model.fit(X_train, y_train)
+
+        xgb_model = XGBRegressor(random_state=42)
+        xgb_model.fit(X_train, y_train)
+
+        return gb_model, xgb_model, None, None  # 교차 검증 점수 없음
+
+    else:
+        # 하이퍼파라미터 그리드 설정 (Gradient Boosting)
+        gb_param_grid = {
+            'n_estimators': [50, 100, 150],
+            'learning_rate': [0.01, 0.1, 0.2],
+            'max_depth': [3, 5, 7]
+        }
+
+        gb_grid = GridSearchCV(GradientBoostingRegressor(random_state=42), gb_param_grid, cv=n_splits, scoring='neg_mean_squared_error')
+        gb_grid.fit(X_train, y_train)
+
+        # 하이퍼파라미터 그리드 설정 (XGBoost)
+        xgb_param_grid = {
+            'n_estimators': [50, 100, 150],
+            'learning_rate': [0.01, 0.1, 0.2],
+            'max_depth': [3, 5, 7],
+            'gamma': [0, 0.1, 0.3]
+        }
+
+        xgb_grid = GridSearchCV(XGBRegressor(random_state=42), xgb_param_grid, cv=n_splits, scoring='neg_mean_squared_error')
+        xgb_grid.fit(X_train, y_train)
+
+        gb_mse = gb_grid.best_score_
+        xgb_mse = xgb_grid.best_score_
+
+        return gb_grid.best_estimator_, xgb_grid.best_estimator_, gb_mse, xgb_mse
 
 gb_market_model, xgb_market_model, gb_market_mse, xgb_market_mse = train_market_value_model(df)
 
@@ -205,3 +225,4 @@ if st.button("선수 검색"):
             visualize_player_stats(player)
     else:
         st.write("조건에 맞는 선수가 없습니다.")
+
